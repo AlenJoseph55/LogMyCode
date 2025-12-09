@@ -8,13 +8,18 @@ export class DailySummaryWebview {
     private readonly _extensionUri: vscode.Uri;
     private _disposables: vscode.Disposable[] = [];
     private _gitService: GitService;
+    private _context: vscode.ExtensionContext;
 
     private _folders: string[] = [];
 
-    private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
+    private constructor(panel: vscode.WebviewPanel, context: vscode.ExtensionContext) {
         this._panel = panel;
-        this._extensionUri = extensionUri;
+        this._extensionUri = context.extensionUri;
+        this._context = context;
         this._gitService = new GitService();
+        
+        this._folders = this._context.globalState.get<string[]>('dailySummary.folders') || [];
+
 
         this._update();
         
@@ -27,6 +32,7 @@ export class DailySummaryWebview {
                         return;
                     case 'clearFolders':
                         this._folders = [];
+                         this._context.globalState.update('dailySummary.folders', []);
                          this._panel.webview.postMessage({ command: 'updateFolders', folders: this._folders });
                         return;
                     case 'getCommits':
@@ -86,7 +92,7 @@ export class DailySummaryWebview {
         );
     }
 
-    public static createOrShow(extensionUri: vscode.Uri) {
+    public static createOrShow(context: vscode.ExtensionContext) {
         const column = vscode.window.activeTextEditor
             ? vscode.window.activeTextEditor.viewColumn
             : undefined;
@@ -102,11 +108,11 @@ export class DailySummaryWebview {
             column || vscode.ViewColumn.One,
             {
                 enableScripts: true,
-                localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'media')]
+                localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')]
             }
         );
 
-        DailySummaryWebview.currentPanel = new DailySummaryWebview(panel, extensionUri);
+        DailySummaryWebview.currentPanel = new DailySummaryWebview(panel, context);
     }
 
     public dispose() {
@@ -134,6 +140,7 @@ export class DailySummaryWebview {
         if (fileUri && fileUri[0]) {
              const newPaths = fileUri.map(uri => uri.fsPath);
              this._folders = [...new Set([...this._folders, ...newPaths])];
+             await this._context.globalState.update('dailySummary.folders', this._folders);
              this._panel.webview.postMessage({ command: 'updateFolders', folders: this._folders });
         }
     }
@@ -435,6 +442,10 @@ export class DailySummaryWebview {
                 addFolderBtn.addEventListener('click', () => {
                     vscode.postMessage({ command: 'selectFolder' });
                 });
+
+                // Initialize with saved folders
+                const initialFolders = ${JSON.stringify(this._folders)};
+                renderFolders(initialFolders);
 
                 document.getElementById('clearFoldersBtn').addEventListener('click', () => {
                     vscode.postMessage({ command: 'clearFolders' });

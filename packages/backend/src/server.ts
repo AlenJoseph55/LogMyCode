@@ -39,10 +39,42 @@ app.post('/api/commits', async (req, res) => {
 
     await saveSummary(payload.userId, payload.date, summaryText, totalCommits);
 
+    const byRepo = new Map<string, StoredCommit[]>();
+    for (const entry of dayCommits) {
+      const list = byRepo.get(entry.repoName) || [];
+      list.push(entry);
+      byRepo.set(entry.repoName, list);
+    }
+
+    const repos: {
+      name: string;
+      commits: { hash: string; message: string }[];
+    }[] = [];
+
+    for (const [repoName, entries] of byRepo.entries()) {
+      const seen = new Set<string>();
+      const uniqueCommits: { hash: string; message: string }[] = [];
+      for (const c of entries) {
+        if (!seen.has(c.hash)) {
+          seen.add(c.hash);
+          uniqueCommits.push({
+            hash: c.hash,
+            message: c.message
+          });
+        }
+      }
+
+      repos.push({
+        name: repoName,
+        commits: uniqueCommits
+      });
+    }
+
     return res.json({ 
-      status: 'ok', 
-      summaryGenerated: true,
-      summary: summaryText 
+      userId: payload.userId,
+      date: payload.date,
+      summary: summaryText,
+      repos
     });
   } catch (error) {
     console.error('Error processing commits:', error);

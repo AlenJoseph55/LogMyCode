@@ -48,11 +48,11 @@ Instructions:
 LogMyCode – Daily Summary (${date})
 
 Repos:
-- [Repo Name]
+• [Repo Name]
   • [Summary point 1]
   • [Summary point 2]
   ...
-- [Repo Name 2]
+• [Repo Name 2]
   ...
 
 Total commits: [Total Count]
