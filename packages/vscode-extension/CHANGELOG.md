@@ -4,6 +4,12 @@ All notable changes to the "logmycode" extension will be documented in this file
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.0.0] - 2026-01-12
+
+- **Feat**: Separated webview scripts from the main extension logic for cleaner architecture.
+- **Feat**: Enhanced git log command to automatically exclude merge commits (`--no-merges`), ensuring cleaner summaries.
+- **Feat**: Updated history fetching logic to retrieve the *latest available* commits rather than just the previous calendar date.
+
 ## [1.0.0] - 2025-12-17
 
 - Initial release of LogMyCode extension.
