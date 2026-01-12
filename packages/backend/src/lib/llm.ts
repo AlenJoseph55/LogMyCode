@@ -50,7 +50,7 @@ Instructions:
 
 LogMyCode – Daily Summary (${date})
 
-Repos:
+Repos:    
 • [Repo Name]
 • [Summary point 1]
 • [Summary point 2]

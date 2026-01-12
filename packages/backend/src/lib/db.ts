@@ -120,7 +120,6 @@ export async function saveCommits(payload: BulkCommitPayload) {
   try {
     await client.query('BEGIN');
 
-    // 1. Upsert User
     let userId: string;
     const userRes = await client.query(
       `INSERT INTO users (username) VALUES ($1) 
@@ -131,7 +130,6 @@ export async function saveCommits(payload: BulkCommitPayload) {
     userId = userRes.rows[0].id;
 
     for (const repo of payload.repos) {
-      // 2. Upsert Repo
       let repoId: string;
       const repoRes = await client.query(
         `INSERT INTO repos (user_id, name) VALUES ($1, $2)
@@ -141,9 +139,7 @@ export async function saveCommits(payload: BulkCommitPayload) {
       );
       repoId = repoRes.rows[0].id;
 
-      // 3. Insert Commits
       for (const commit of repo.commits) {
-        // Use committed_at from payload or current time if missing
         const committedAt = commit.timestamp || new Date().toISOString();
 
         await client.query(
@@ -231,6 +227,24 @@ export async function getSummary(username: string, date: string): Promise<Stored
      FROM daily_summaries s
      JOIN users u ON s.user_id = u.id
      WHERE u.username = $1 AND s.date = $2`,
+    [username, date]
+  );
+  return res.rows[0];
+}
+export async function getLatestSummaryBeforeDate(username: string, date: string): Promise<StoredSummary | undefined> {
+  const res = await pool.query(
+    `SELECT 
+       s.id,
+       s.user_id as "userId",
+       s.date::TEXT as "date",
+       s.summary,
+       s.total_commits as "totalCommits",
+       s.created_at as "createdAt"
+     FROM daily_summaries s
+     JOIN users u ON s.user_id = u.id
+     WHERE u.username = $1 AND s.date < $2
+     ORDER BY s.date DESC
+     LIMIT 1`,
     [username, date]
   );
   return res.rows[0];

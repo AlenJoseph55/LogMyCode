@@ -5,6 +5,7 @@ import {
   saveSummary, 
   getSummary, 
   getCommits,
+  getLatestSummaryBeforeDate,
   StoredCommit, 
   BulkCommitPayloadSchema 
 } from './lib/db';
@@ -140,23 +141,24 @@ app.get('/api/daily-summary', async (req, res) => {
 });
 
 app.get('/api/recent-summaries', async (req, res) => {
+  console.log('Received request for recent summaries');
   const userId = (req.query.userId as string) || '';
-  const dateStr = (req.query.date as string) || new Date().toISOString().split('T')[0];
-
+  const dateStr = (req.query.date as string);
+console.log(dateStr);
   if (!userId) {
     return res.status(400).json({ error: 'Missing userId' });
   }
 
   try {
-    const today = new Date(dateStr);
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split('T')[0];
-
-    const [todaySummary, yesterdaySummary] = await Promise.all([
+    const [todaySummary, lastSummary] = await Promise.all([
       getSummary(userId, dateStr),
-      getSummary(userId, yesterdayStr)
+      getLatestSummaryBeforeDate(userId, dateStr)
     ]);
+
+    let yesterdayDate = null;
+    if (lastSummary) {
+      yesterdayDate = lastSummary.date;
+    }
 
     return res.json({
       userId,
@@ -166,9 +168,9 @@ app.get('/api/recent-summaries', async (req, res) => {
         totalCommits: todaySummary?.totalCommits || 0
       },
       yesterday: {
-        date: yesterdayStr,
-        summary: yesterdaySummary?.summary || null,
-        totalCommits: yesterdaySummary?.totalCommits || 0
+        date: yesterdayDate || 'N/A',
+        summary: lastSummary?.summary || null,
+        totalCommits: lastSummary?.totalCommits || 0
       }
     });
   } catch (error) {
