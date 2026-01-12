@@ -22,7 +22,7 @@ export class GitService {
         const since = `${dateStr} 00:00:00`;
         const until = `${dateStr} 23:59:59`;
         
-        const command = `git log --all --author="${author}" --since="${since}" --until="${until}" --pretty=format:"%H|%s|%aI"`;
+        const command = `git log --no-merges --all --author="${author}" --since="${since}" --until="${until}" --pretty=format:"%H|%s|%aI"`;
         
         try {
             const { stdout } = await exec(command, { cwd: folderPath });
