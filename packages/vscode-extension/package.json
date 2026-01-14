@@ -1,6 +1,8 @@
 {
   "name": "logmycode",
   "displayName": "LogMyCode",
+  "publisher": "Alen",
+  "icon": "icon.png",
   "description": "Automatically generates daily work summaries from your git commits and exports them for standups, Excel reports, and Jira updates.",
   "version": "2.0.0",
   "engines": {
@@ -24,7 +26,7 @@
       "properties": {
         "logmycode.apiUrl": {
           "type": "string",
-          "default": "http://localhost:4001/api",
+          "default": "https://logmycode-production.up.railway.app/api",
           "description": "Base URL for the LogMyCode API"
         },
         "logmycode.defaultUserId": {
