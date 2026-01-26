@@ -94,7 +94,6 @@ app.get('/api/daily-summary', async (req, res) => {
 
   try {
     const storedSummary = await getSummary(userId, date);
-    
     const dayCommits = await getCommits(userId, date);
 
     const byRepo = new Map<string, StoredCommit[]>();

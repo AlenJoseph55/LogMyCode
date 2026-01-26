@@ -135,15 +135,20 @@ export class DailySummaryWebview {
                     results.push(result);
                 }
             }
+            if (results.length === 0) {
+                vscode.window.showInformationMessage(`No commits found for ${date}.`);
+                return;
+            }
+
+            const responsePayload = {
+                userId: userId,
+                date: date,
+                repos: results
+            };
+    
+            // Automatically send to API to generate summary
+            await this._sendToApi(responsePayload);
         });
-
-        const responsePayload = {
-            userId: userId,
-            date: date,
-            repos: results
-        };
-
-        this._panel.webview.postMessage({ command: 'showResults', data: responsePayload });
     }
 
     private async _sendToApi(data: any) {
@@ -151,21 +156,29 @@ export class DailySummaryWebview {
         const apiUrl = config.get<string>('apiUrl');
         
         try {
-            const response = await fetch(`${apiUrl}/commits`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(data)
-            });
+            await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: "Generating summary...",
+                cancellable: false
+            }, async () => {
+                const response = await fetch(`${apiUrl}/commits`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
 
-            if (response.ok) {
-                vscode.window.showInformationMessage('Successfully sent to API!');
-            } else {
-                vscode.window.showErrorMessage(`Failed to send to API: ${response.statusText}`);
-            }
+                if (response.ok) {
+                    const json = await response.json();
+                    this._panel.webview.postMessage({ command: 'showResults', data: json });
+                    vscode.window.showInformationMessage('Summary generated successfully!');
+                } else {
+                    vscode.window.showErrorMessage(`Failed to generate summary: ${response.statusText}`);
+                }
+            });
         } catch (error) {
-             vscode.window.showErrorMessage(`Failed to send to API: ${error}`);
+             vscode.window.showErrorMessage(`Failed to connect to API: ${error}`);
         }
     }
 
@@ -372,20 +385,30 @@ export class DailySummaryWebview {
                 </div>
 
                 <div class="actions">
-                    <button id="getCommitsBtn">Generate Summary</button>
+                    <button id="getCommitsBtn">Generate Async</button>
                     <button id="fetchHistoryBtn" class="secondary">Fetch & Format History</button>
                 </div>
 
                 <div id="resultsArea" class="hidden" style="margin-top: 30px;">
                     <div class="results-header">
-                        <h2>Results</h2>
+                        <div style="display: flex; align-items: baseline; gap: 10px;">
+                            <h2>Results</h2>
+                            <a href="#" id="reviewInputsLink" style="font-size: 0.9em; text-decoration: none;">Review inputs</a>
+                        </div>
                         <div style="display: flex; gap: 8px;">
                             <button id="copyBtn" class="secondary">Copy Output</button>
-                            <button id="sendBtn">Send to API</button>
                         </div>
                     </div>
                     <div id="summaryContent" class="card hidden" style="white-space: pre-wrap; font-family: var(--vscode-font-monospace); line-height: 1.5;"></div>
-                    <pre id="jsonOutput"></pre>
+                    
+                    <div id="inputsArea" class="hidden" style="margin-top: 20px;">
+                        <h3>Review & Edit Inputs</h3>
+                        <p style="font-size: 0.9em; color: var(--vscode-descriptionForeground); margin-bottom: 10px;">Make changes to your commit messages below and click Regenerate.</p>
+                        <div id="commitsList" style="margin-bottom: 15px;"></div>
+                        <button id="regenerateBtn">Regenerate</button>
+                    </div>
+
+                    <pre id="jsonOutput" class="hidden"></pre>
                 </div>
             </div>
 

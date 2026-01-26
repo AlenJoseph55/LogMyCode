@@ -11,14 +11,17 @@
     const resultsArea = document.getElementById('resultsArea');
     const jsonOutput = document.getElementById('jsonOutput');
     const copyBtn = document.getElementById('copyBtn');
-    const sendBtn = document.getElementById('sendBtn');
+
+    // New elements
+    const reviewInputsLink = document.getElementById('reviewInputsLink');
+    const inputsArea = document.getElementById('inputsArea');
+    const commitsListContainer = document.getElementById('commitsList');
+    const regenerateBtn = document.getElementById('regenerateBtn');
 
     let currentData = null;
 
-    // Set default date to today
     dateInput.valueAsDate = new Date();
 
-    // Restore state
     const oldState = vscode.getState() || {};
     if (oldState.userId) userIdInput.value = oldState.userId;
     if (oldState.gitAuthor) gitAuthorInput.value = oldState.gitAuthor;
@@ -28,8 +31,6 @@
         vscode.postMessage({ command: 'selectFolder' });
     });
 
-    // Initialize with saved folders
-    // window.initialFolders is injected by the webview HTML
     const initialFolders = window.initialFolders || [];
     renderFolders(initialFolders);
 
@@ -51,8 +52,6 @@
     });
 
     fetchHistoryBtn.addEventListener('click', () => {
-        console.log(dateInput.value);
-        // Using the actual date input value now, assuming previous hardcoded '2025-05-20' was for testing
         const date = dateInput.value;
         const userId = userIdInput.value;
         vscode.postMessage({
@@ -67,7 +66,6 @@
             if (currentData.today && currentData.yesterday) {
                 textToCopy = formatStandup(currentData);
             } else {
-                // Fallback for normal summary
                 const summaryEl = document.getElementById('summaryContent');
                 textToCopy = summaryEl.textContent;
             }
@@ -76,11 +74,55 @@
         }
     });
 
-    sendBtn.addEventListener('click', () => {
-        if (currentData) {
-            vscode.postMessage({ command: 'sendToApi', data: currentData });
-        }
-    });
+    if (reviewInputsLink) {
+        reviewInputsLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            inputsArea.classList.toggle('hidden');
+        });
+    }
+
+    if (regenerateBtn) {
+        regenerateBtn.addEventListener('click', () => {
+            try {
+                const repoGroups = document.querySelectorAll('.repo-group');
+                const editedRepos = [];
+
+                repoGroups.forEach(group => {
+                    const repoName = group.dataset.repoName;
+                    const commitInputs = group.querySelectorAll('.commit-input-row');
+                    const commits = [];
+
+                    commitInputs.forEach(row => {
+                        const hash = row.dataset.hash;
+                        const messageInput = row.querySelector('input[type="text"]');
+                        const timestamp = row.dataset.timestamp;
+
+                        commits.push({
+                            hash: hash,
+                            message: messageInput.value,
+                            timestamp: timestamp
+                        });
+                    });
+
+                    editedRepos.push({
+                        name: repoName,
+                        commits: commits
+                    });
+                });
+
+                const newData = {
+                    userId: currentData.userId,
+                    date: currentData.date,
+                    repos: editedRepos
+                };
+
+                vscode.postMessage({ command: 'sendToApi', data: newData });
+                inputsArea.classList.add('hidden');
+            } catch (e) {
+                console.error("Error gathering inputs", e);
+            }
+        });
+    }
 
     window.addEventListener('message', event => {
         const message = event.data;
@@ -100,7 +142,6 @@
 
         const lines = summaryText.split('\n');
         const formatted = [];
-        let currentRepo = null;
 
         for (const raw of lines) {
             const line = raw.trim();
@@ -118,19 +159,14 @@
             if (line.startsWith('• ')) {
                 const content = line.substring(2).trim();
 
-                // Repo names NEVER start with verbs, commit bullets do.
                 const looksLikeAction =
                     content.match(/^(added|updated|fixed|refactored|removed|optimized|Completed)/i);
 
                 if (!looksLikeAction) {
-                    // It's a repo name
-                    currentRepo = content;
-                    formatted.push(` ${content}`);   // 1-space indent
+                    formatted.push(` ${content}`);
                     continue;
                 }
-
-                // It's a commit bullet
-                formatted.push(`  - ${content}`);   // 2-space indent + dash
+                formatted.push(`  - ${content}`);
             }
         }
 
@@ -157,19 +193,48 @@
             // It's the history response
             summaryContent.classList.remove('hidden');
             summaryContent.textContent = formatStandup(data);
-            sendBtn.style.display = 'none'; // Hide send btn since it's just history
+            reviewInputsLink.style.display = 'none'; // No editing for history fetch?
         } else if (data.summary) {
             // Standard single summary
             summaryContent.classList.remove('hidden');
             summaryContent.textContent = data.summary;
-            sendBtn.style.display = 'inline-block';
+            reviewInputsLink.style.display = 'inline';
         } else {
             summaryContent.classList.add('hidden');
-            sendBtn.style.display = 'inline-block';
         }
 
-        // Pretty print JSON
+        // Populate inputs area with editable form
+        if (data.repos) {
+            renderEditableCommits(data.repos);
+        } else {
+            commitsListContainer.innerHTML = '';
+        }
+
+        inputsArea.classList.add('hidden');
         jsonOutput.textContent = JSON.stringify(data, null, 2);
+    }
+
+    function renderEditableCommits(repos) {
+        if (!repos || repos.length === 0) {
+            commitsListContainer.innerHTML = '<p>No commits found to edit.</p>';
+            return;
+        }
+
+        const html = repos.map(repo => `
+            <div class="repo-group" data-repo-name="${repo.name}" style="margin-bottom: 20px;">
+                <h4 style="margin-bottom: 8px; color: var(--vscode-editor-foreground); border-bottom: 1px solid var(--vscode-panel-border); padding-bottom: 4px;">${repo.name}</h4>
+                ${repo.commits.map(commit => `
+                    <div class="commit-input-row" data-hash="${commit.hash}" data-timestamp="${commit.timestamp || ''}" style="margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+                        <input type="text" value="${commit.message.replace(/"/g, '&quot;')}" 
+                            style="flex-grow: 1; padding: 6px; border: 1px solid var(--vscode-input-border); background: var(--vscode-input-background); color: var(--vscode-input-foreground); border-radius: 4px;"
+                        />
+                         <span style="font-family: monospace; font-size: 0.8em; opacity: 0.6;">${commit.hash.substring(0, 7)}</span>
+                    </div>
+                `).join('')}
+            </div>
+        `).join('');
+
+        commitsListContainer.innerHTML = html;
     }
 
     function renderFolders(folders) {

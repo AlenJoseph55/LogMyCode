@@ -145,7 +145,7 @@ export async function saveCommits(payload: BulkCommitPayload) {
         await client.query(
           `INSERT INTO commits (user_id, repo_id, hash, message, committed_at)
            VALUES ($1, $2, $3, $4, $5)
-           ON CONFLICT (repo_id, hash) DO NOTHING`,
+           ON CONFLICT (repo_id, hash) DO UPDATE SET message = EXCLUDED.message`,
           [userId, repoId, commit.hash, commit.message, committedAt]
         );
       }
