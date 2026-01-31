@@ -1,25 +1,34 @@
-import typescriptEslint from 'typescript-eslint';
 import globals from 'globals';
 import pluginJs from '@eslint/js';
+import tseslint from 'typescript-eslint';
 
 export default [
-  pluginJs.configs.recommended,
-  ...typescriptEslint.configs.recommended,
   {
-    files: ['**/*.{ts,js}'],
+    ignores: ['**/dist/**', '**/out/**', '**/node_modules/**', '**/.vscode-test/**'],
+  },
+  pluginJs.configs.recommended,
+  ...tseslint.configs.recommended,
+  {
+    files: ['**/*.{js,mjs,cjs,ts}'],
     languageOptions: {
       globals: {
         ...globals.node,
         ...globals.browser,
       },
-      parser: typescriptEslint.parser,
+      parser: tseslint.parser,
       ecmaVersion: 2022,
       sourceType: 'module',
     },
     plugins: {
-      '@typescript-eslint': typescriptEslint.plugin,
+      '@typescript-eslint': tseslint.plugin,
     },
     rules: {
+      'no-console': 'warn',
+      'no-unused-vars': 'off',
+      'no-throw-literal': 'warn',
+      curly: 'warn',
+      eqeqeq: 'warn',
+      semi: 'warn',
       '@typescript-eslint/naming-convention': [
         'warn',
         {
@@ -27,12 +36,8 @@ export default [
           format: ['camelCase', 'PascalCase'],
         },
       ],
-      '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
-      curly: 'warn',
-      eqeqeq: 'warn',
-      'no-throw-literal': 'warn',
-      semi: 'warn',
+      '@typescript-eslint/no-explicit-any': 'error',
     },
   },
 ];

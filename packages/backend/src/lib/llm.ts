@@ -11,7 +11,8 @@ const groq = new Groq({
 export async function generateDailySummary(
   userId: string,
   date: string,
-  commits: StoredCommit[]
+  commits: StoredCommit[],
+  template?: string
 ): Promise<string> {
   if (!process.env.GROQ_API_KEY) {
     console.warn('GROQ_API_KEY not found. Returning mock summary.');
@@ -25,18 +26,21 @@ export async function generateDailySummary(
     byRepo.set(c.repoName, list);
   }
 
-  const commitsText = Array.from(byRepo.entries()).map(([repoName, repoCommits]) => {
-    return `Repo: ${repoName}\n` +
-      repoCommits.map(c => `- ${c.message}`).join('\n');
-  }).join('\n\n');
+  const commitsText = Array.from(byRepo.entries())
+    .map(([repoName, repoCommits]) => {
+      return `Repo: ${repoName}\n` + repoCommits.map((c) => `- ${c.message}`).join('\n');
+    })
+    .join('\n\n');
 
-  const prompt = `
+  const preamble = `
 You are an AI assistant for a developer tool called "LogMyCode".
 Your task is to generate a daily work summary based on the following git commits for User "${userId}" on Date "${date}".
 
 Input Commits:
 ${commitsText}
+`;
 
+  const defaultInstructions = `
 Instructions:
 1. Group the work by repository.
 2. For each repository, summarize the changes in 3-4 concise bullet points.
@@ -63,11 +67,23 @@ Total commits: [Total Count]
 Do not add any other text before or after this format.
 `;
 
+  // Use provided template (instructions) or default
+  const instructions = template || defaultInstructions;
+
+  // prompt = preamble + instructions
+  // We do simple concatenation. The template should NOT contain placeholders like {{commits}} anymore,
+  // as the context is now hardcoded in preamble.
+  // HOWEVER, if the user *wants* to use placeholders in their instructions for some reason, we could support it,
+  // but the requirement says "Summary template should only contain the instructions".
+  // Let's just concatenate.
+
+  const prompt = `${preamble}\n\n${instructions}`;
+
   try {
     const response = await groq.chat.completions.create({
       messages: [
         { role: 'system', content: 'You are a helpful assistant that summarizes code changes.' },
-        { role: 'user', content: prompt }
+        { role: 'user', content: prompt },
       ],
       model: 'llama-3.3-70b-versatile',
       temperature: 0.5,

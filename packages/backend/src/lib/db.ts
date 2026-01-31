@@ -9,27 +9,28 @@ dotenv.config();
 export const CommitSchema = z.object({
   hash: z.string(),
   message: z.string(),
-  timestamp: z.string().optional()
+  timestamp: z.string().optional(),
 });
 
 export const RepoCommitsSchema = z.object({
   name: z.string(),
-  commits: z.array(CommitSchema)
+  commits: z.array(CommitSchema),
 });
 
 export const BulkCommitPayloadSchema = z.object({
   userId: z.string(),
   date: z.string(),
-  repos: z.array(RepoCommitsSchema)
+  repos: z.array(RepoCommitsSchema),
+  template: z.string().optional(),
 });
 
 export type BulkCommitPayload = z.infer<typeof BulkCommitPayloadSchema>;
 
 export type StoredCommit = {
   id: string;
-  userId: string; 
-  repoId: string; 
-  repoName: string; 
+  userId: string;
+  repoId: string;
+  repoName: string;
   hash: string;
   message: string;
   committedAt: string;
@@ -38,7 +39,7 @@ export type StoredCommit = {
 
 export type StoredSummary = {
   id: string;
-  userId: string; 
+  userId: string;
   date: string;
   summary: string;
   totalCommits: number;
@@ -50,8 +51,8 @@ export type StoredSummary = {
 const pool = new Pool({
   connectionString: process.env.NEONDB_API_KEY,
   ssl: {
-    rejectUnauthorized: false
-  }
+    rejectUnauthorized: false,
+  },
 });
 
 // ---------- Init ----------
@@ -120,24 +121,22 @@ export async function saveCommits(payload: BulkCommitPayload) {
   try {
     await client.query('BEGIN');
 
-    let userId: string;
     const userRes = await client.query(
       `INSERT INTO users (username) VALUES ($1) 
        ON CONFLICT (username) DO UPDATE SET username = EXCLUDED.username 
        RETURNING id`,
       [payload.userId]
     );
-    userId = userRes.rows[0].id;
+    const userId = userRes.rows[0].id;
 
     for (const repo of payload.repos) {
-      let repoId: string;
       const repoRes = await client.query(
         `INSERT INTO repos (user_id, name) VALUES ($1, $2)
          ON CONFLICT (user_id, name) DO UPDATE SET name = EXCLUDED.name
          RETURNING id`,
         [userId, repo.name]
       );
-      repoId = repoRes.rows[0].id;
+      const repoId = repoRes.rows[0].id;
 
       for (const commit of repo.commits) {
         const committedAt = commit.timestamp || new Date().toISOString();
@@ -170,7 +169,7 @@ export async function getCommits(username: string, date: string): Promise<Stored
   // Let's assume we filter by the `date` passed in the query, comparing it to `committed_at`.
   // OR, we rely on the fact that the user POSTed these commits for this specific date.
   // But since we are now storing them permanently, we should query by `committed_at::DATE = date`.
-  
+
   const res = await pool.query(
     `SELECT 
        c.id,
@@ -187,13 +186,18 @@ export async function getCommits(username: string, date: string): Promise<Stored
      WHERE u.username = $1 AND c.committed_at::DATE = $2::DATE`,
     [username, date]
   );
-  
+
   return res.rows;
 }
 
 // ---------- Summaries ----------
 
-export async function saveSummary(username: string, date: string, summary: string, totalCommits: number) {
+export async function saveSummary(
+  username: string,
+  date: string,
+  summary: string,
+  totalCommits: number
+) {
   const client = await pool.connect();
   try {
     // Get user ID
@@ -215,7 +219,10 @@ export async function saveSummary(username: string, date: string, summary: strin
   }
 }
 
-export async function getSummary(username: string, date: string): Promise<StoredSummary | undefined> {
+export async function getSummary(
+  username: string,
+  date: string
+): Promise<StoredSummary | undefined> {
   const res = await pool.query(
     `SELECT 
        s.id,
@@ -231,7 +238,10 @@ export async function getSummary(username: string, date: string): Promise<Stored
   );
   return res.rows[0];
 }
-export async function getLatestSummaryBeforeDate(username: string, date: string): Promise<StoredSummary | undefined> {
+export async function getLatestSummaryBeforeDate(
+  username: string,
+  date: string
+): Promise<StoredSummary | undefined> {
   const res = await pool.query(
     `SELECT 
        s.id,

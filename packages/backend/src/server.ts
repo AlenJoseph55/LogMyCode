@@ -1,13 +1,13 @@
 import express from 'express';
-import { 
+import {
   initDb,
-  saveCommits, 
-  saveSummary, 
-  getSummary, 
+  saveCommits,
+  saveSummary,
+  getSummary,
   getCommits,
   getLatestSummaryBeforeDate,
-  StoredCommit, 
-  BulkCommitPayloadSchema 
+  StoredCommit,
+  BulkCommitPayloadSchema,
 } from './lib/db';
 import { generateDailySummary } from './lib/llm';
 
@@ -24,7 +24,7 @@ app.post('/api/commits', async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({
       error: 'Invalid payload',
-      details: parsed.error.format()
+      details: parsed.error.format(),
     });
   }
 
@@ -33,10 +33,17 @@ app.post('/api/commits', async (req, res) => {
   try {
     await saveCommits(payload);
     const dayCommits = await getCommits(payload.userId, payload.date);
-  
-    const summaryText = await generateDailySummary(payload.userId, payload.date, dayCommits);
-    
+
+    const summaryText = await generateDailySummary(
+      payload.userId,
+      payload.date,
+      dayCommits,
+      payload.template
+    );
+
     const totalCommits = dayCommits.length;
+
+    console.log('Summary generated successfully!', summaryText);
 
     await saveSummary(payload.userId, payload.date, summaryText, totalCommits);
 
@@ -60,22 +67,22 @@ app.post('/api/commits', async (req, res) => {
           seen.add(c.hash);
           uniqueCommits.push({
             hash: c.hash,
-            message: c.message
+            message: c.message,
           });
         }
       }
 
       repos.push({
         name: repoName,
-        commits: uniqueCommits
+        commits: uniqueCommits,
       });
     }
 
-    return res.json({ 
+    return res.json({
       userId: payload.userId,
       date: payload.date,
       summary: summaryText,
-      repos
+      repos,
     });
   } catch (error) {
     console.error('Error processing commits:', error);
@@ -88,7 +95,7 @@ app.get('/api/daily-summary', async (req, res) => {
   const date = (req.query.date as string) || '';
   if (!userId || !date) {
     return res.status(400).json({
-      error: 'Missing userId or date'
+      error: 'Missing userId or date',
     });
   }
 
@@ -116,14 +123,14 @@ app.get('/api/daily-summary', async (req, res) => {
           seen.add(c.hash);
           uniqueCommits.push({
             hash: c.hash,
-            message: c.message
+            message: c.message,
           });
         }
       }
 
       repos.push({
         name: repoName,
-        commits: uniqueCommits
+        commits: uniqueCommits,
       });
     }
 
@@ -131,7 +138,7 @@ app.get('/api/daily-summary', async (req, res) => {
       userId,
       date,
       summary: storedSummary?.summary || 'No summary generated yet.',
-      repos
+      repos,
     });
   } catch (error) {
     console.error('Error fetching summary:', error);
@@ -142,8 +149,8 @@ app.get('/api/daily-summary', async (req, res) => {
 app.get('/api/recent-summaries', async (req, res) => {
   console.log('Received request for recent summaries');
   const userId = (req.query.userId as string) || '';
-  const dateStr = (req.query.date as string);
-console.log(dateStr);
+  const dateStr = req.query.date as string;
+  console.log(dateStr);
   if (!userId) {
     return res.status(400).json({ error: 'Missing userId' });
   }
@@ -151,7 +158,7 @@ console.log(dateStr);
   try {
     const [todaySummary, lastSummary] = await Promise.all([
       getSummary(userId, dateStr),
-      getLatestSummaryBeforeDate(userId, dateStr)
+      getLatestSummaryBeforeDate(userId, dateStr),
     ]);
 
     let yesterdayDate = null;
@@ -164,13 +171,13 @@ console.log(dateStr);
       today: {
         date: dateStr,
         summary: todaySummary?.summary || null,
-        totalCommits: todaySummary?.totalCommits || 0
+        totalCommits: todaySummary?.totalCommits || 0,
       },
       yesterday: {
         date: yesterdayDate || 'N/A',
         summary: lastSummary?.summary || null,
-        totalCommits: lastSummary?.totalCommits || 0
-      }
+        totalCommits: lastSummary?.totalCommits || 0,
+      },
     });
   } catch (error) {
     console.error('Error fetching recent summaries:', error);
