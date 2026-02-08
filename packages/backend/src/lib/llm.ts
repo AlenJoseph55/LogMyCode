@@ -40,7 +40,18 @@ Input Commits:
 ${commitsText}
 `;
 
-  const defaultInstructions = `
+  const defaultFormat = `
+Repos:    
+• [Repo Name]
+  - [Summary point 1]
+  - [Summary point 2]
+...
+• [Repo Name 2]
+...`;
+
+  const userFormat = template || defaultFormat;
+
+  const instructions = `
 Instructions:
 1. Group the work by repository.
 2. For each repository, summarize the changes in 3-4 concise bullet points.
@@ -54,29 +65,14 @@ Instructions:
 
 LogMyCode – Daily Summary (${date})
 
-Repos:    
-• [Repo Name]
-• [Summary point 1]
-• [Summary point 2]
-...
-• [Repo Name 2]
-...
+${userFormat}
 
 Total commits: [Total Count]
 
 Do not add any other text before or after this format.
 `;
 
-  // Use provided template (instructions) or default
-  const instructions = template || defaultInstructions;
-
   // prompt = preamble + instructions
-  // We do simple concatenation. The template should NOT contain placeholders like {{commits}} anymore,
-  // as the context is now hardcoded in preamble.
-  // HOWEVER, if the user *wants* to use placeholders in their instructions for some reason, we could support it,
-  // but the requirement says "Summary template should only contain the instructions".
-  // Let's just concatenate.
-
   const prompt = `${preamble}\n\n${instructions}`;
 
   try {

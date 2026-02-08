@@ -11,38 +11,13 @@ export class DailySummaryWebview {
 
   private _folders: string[] = [];
   private _defaultGitAuthor: string = '';
-  private readonly _summaryTemplate = `
-You are an AI assistant for a developer tool called "LogMyCode".
-Your task is to generate a daily work summary based on the following git commits for User "{{userId}}" on Date "{{date}}".
-
-Input Commits:
-{{commits}}
-
-Instructions:
-1. Group the work by repository.
-2. For each repository, summarize the changes in 3-4 concise bullet points.
-3. CRITICAL: Describe ACTIONS, not impact.
-   - Strip phrases like "resulting in...", "which allows...", "improving...", "enhancing...".
-   - Start specific points with preferred verbs: Added, Updated, Fixed, Refactored, Optimized.
-   - Do NOT explain the outcome or benefit (e.g., "to improve performance"). Just state what was done (e.g., "Optimized database queries").
-4. Combine related commits where appropriate but keep points purely action-oriented.
-5. Calculate the total number of commits.
-6. Format the output EXACTLY as follows:
-
-LogMyCode – Daily Summary ({{date}})
-
-Repos:    
+  private readonly _summaryTemplate = `Repos:    
 • [Repo Name]
-• [Summary point 1]
-• [Summary point 2]
+  - [Summary point 1]
+  - [Summary point 2]
 ...
 • [Repo Name 2]
-...
-
-Total commits: [Total Count]
-
-Do not add any other text before or after this format.
-`;
+...`;
 
   private constructor(panel: vscode.WebviewPanel, context: vscode.ExtensionContext) {
     this._panel = panel;
@@ -575,7 +550,7 @@ button.primary {
       </div>
 
       <div class="form-group">
-        <label>Summary Template</label>
+        <label>Output Format</label>
         <textarea id="template" rows="6">${this._summaryTemplate}</textarea>
       </div>
     </div>
