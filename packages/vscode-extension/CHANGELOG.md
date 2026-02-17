@@ -4,11 +4,19 @@ All notable changes to the "logmycode" extension will be documented in this file
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.1.0] - 2026-02-17
+
+- **Feat**: Updated default API URL to production endpoint (`https://api.logmycode.alenjoseph.dev/api`).
+- **Refactor**: Improved daily summary templates and clipboard copy logic to exclude unnecessary headers/footers.
+- **Feat**: Added VSCode launch and task configurations for better development experience.
+- **Feat**: Separated LLM summary instructions from user-defined output format for better customization.
+- **Fix**: Parse `PORT` environment variable as an integer and bind server to all network interfaces.
+
 ## [2.0.0] - 2026-01-12
 
 - **Feat**: Separated webview scripts from the main extension logic for cleaner architecture.
 - **Feat**: Enhanced git log command to automatically exclude merge commits (`--no-merges`), ensuring cleaner summaries.
-- **Feat**: Updated history fetching logic to retrieve the *latest available* commits rather than just the previous calendar date.
+- **Feat**: Updated history fetching logic to retrieve the _latest available_ commits rather than just the previous calendar date.
 
 ## [1.0.0] - 2025-12-17
 
