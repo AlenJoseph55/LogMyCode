@@ -38,7 +38,8 @@ app.post('/api/commits', async (req, res) => {
       payload.userId,
       payload.date,
       dayCommits,
-      payload.template
+      payload.template,
+      payload.otherActivities
     );
 
     const totalCommits = dayCommits.length;
@@ -190,6 +191,6 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
 
-app.listen(PORT,"0.0.0.0",() => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`LogMyCode backend listening on port ${PORT}`);
 });

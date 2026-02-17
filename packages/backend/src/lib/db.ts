@@ -22,6 +22,7 @@ export const BulkCommitPayloadSchema = z.object({
   date: z.string(),
   repos: z.array(RepoCommitsSchema),
   template: z.string().optional(),
+  otherActivities: z.string().optional(),
 });
 
 export type BulkCommitPayload = z.infer<typeof BulkCommitPayloadSchema>;

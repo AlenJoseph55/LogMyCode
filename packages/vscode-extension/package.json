@@ -4,7 +4,7 @@
   "publisher": "Alen",
   "icon": "icon.png",
   "description": "Automatically generates daily work summaries from your git commits and exports them for standups, Excel reports, and Jira updates.",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "engines": {
     "vscode": "^1.104.0"
   },
