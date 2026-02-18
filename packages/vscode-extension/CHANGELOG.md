@@ -4,6 +4,22 @@ All notable changes to the "logmycode" extension will be documented in this file
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [2.2.0] - 2026-02-18
+
+### Added
+
+- **Standup Mode**: Toggle between standard summary and a Q1/Q2/Q3 standup format (Yesterday/Today/Blockers).
+- **Manual Work Log**: New field to input non-commit activities, which are professionally rewritten by AI.
+- **Regenerate Summary**: Button to re-run AI generation with updated inputs.
+- **Auto-fetch History**: History loads automatically when the extension opens.
+
+### Changed
+
+- **UI Overhaul**: Complete visual redesign with a modern, card-based layout and improved styling.
+- **Smart History**: specific "Yesterday" logic replaced with fetching the _latest_ available previous summary for better context.
+- **Data Storage**: Summaries are now stored cleanly without headers/footers, allowing for dynamic formatting.
+- **Sidebar**: Improved organization for Source Folders and History.
+
 ## [2.1.0] - 2026-02-17
 
 - **Feat**: Updated default API URL to production endpoint (`https://api.logmycode.alenjoseph.dev/api`).

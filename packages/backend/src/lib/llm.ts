@@ -12,7 +12,8 @@ export async function generateDailySummary(
   userId: string,
   date: string,
   commits: StoredCommit[],
-  template?: string
+  template?: string,
+  otherActivities?: string
 ): Promise<string> {
   if (!process.env.GROQ_API_KEY) {
     console.warn('GROQ_API_KEY not found. Returning mock summary.');
@@ -38,6 +39,9 @@ Your task is to generate a daily work summary based on the following git commits
 
 Input Commits:
 ${commitsText}
+
+Manual Work Log:
+${otherActivities || 'None'}
 `;
 
   const defaultFormat = `
@@ -59,14 +63,15 @@ Instructions:
    - Start specific points with preferred verbs: Added, Updated, Fixed, Refactored, Optimized.
    - Do NOT explain the outcome or benefit (e.g., "to improve performance"). Just state what was done (e.g., "Optimized database queries").
 4. Combine related commits where appropriate but keep points purely action-oriented.
-5. Calculate the total number of commits.
-6. Format the output EXACTLY as follows:
-
-LogMyCode – Daily Summary (${date})
+5. PROCESS MANUAL WORK LOG:
+   - "Manual Work Log" entries may be informal or emotional (e.g., "Argued with testing team").
+   - You MUST rewrite them into concise, professional updates (e.g., "Discussed ticket requirements with QA").
+   - IF a manual entry refers to a specific repository or task context present in the commits, MERGE it as a bullet point under that repository.
+   - IF it is a general activity (e.g., "Client meeting"), add it to a "General / Other" section or a relevant repository if one exists for it.
+6. Calculate the total number of commits.
+7. Format the output EXACTLY as follows:
 
 ${userFormat}
-
-Total commits: [Total Count]
 
 Do not add any other text before or after this format.
 `;

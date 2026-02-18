@@ -26,8 +26,12 @@
   const copyBtn = document.getElementById('copyBtn');
   const sendBtn = document.getElementById('sendBtn');
   const regenerateBtn = document.getElementById('regenerateBtn');
+  const standupToggle = document.getElementById('standupToggle');
 
   let currentData = null;
+  let historyData = null;
+  let originalSummary = '';
+  let isStandupMode = false;
 
   // Set default date to today
   dateInput.valueAsDate = new Date();
@@ -63,11 +67,28 @@
   const initialFolders = window.initialFolders || [];
   renderFolders(initialFolders);
 
+  // Auto-fetch history
+  setTimeout(() => {
+    const date = dateInput.value;
+    const userId = userIdInput.value;
+    if (userId && date) {
+      vscode.postMessage({
+        command: 'fetchHistory',
+        data: { date, userId },
+      });
+      showStatus('Fetching history...', 'info');
+    }
+  }, 500);
+
   if (getCommitsBtn) {
     getCommitsBtn.addEventListener('click', generateSummary);
   }
-  if (regenerateBtn) {
-    regenerateBtn.addEventListener('click', generateSummary);
+
+  if (standupToggle) {
+    standupToggle.addEventListener('change', (e) => {
+      isStandupMode = e.target.checked;
+      updateSummaryDisplay();
+    });
   }
 
   function generateSummary() {
@@ -140,22 +161,35 @@
 
   if (sendBtn) {
     sendBtn.addEventListener('click', () => {
-      if (currentData) {
-        if (sendBtn.textContent === 'Generate AI Summary') {
-          showStatus('Sending to AI...', 'info');
-        } else {
-          showStatus('Saving...', 'info');
-        }
-
-        const templateInput = document.getElementById('template');
-        const template = templateInput ? templateInput.value : '';
-
-        vscode.postMessage({
-          command: 'sendToApi',
-          data: { ...currentData, template },
-        });
-      }
+      sendToApi('Generate AI Summary');
     });
+  }
+
+  if (regenerateBtn) {
+    regenerateBtn.addEventListener('click', () => {
+      sendToApi('Regenerate');
+    });
+  }
+
+  function sendToApi(actionType) {
+    if (currentData) {
+      if (actionType === 'Generate AI Summary' || actionType === 'Regenerate') {
+        showStatus('Sending to AI...', 'info');
+      } else {
+        showStatus('Saving...', 'info');
+      }
+
+      const templateInput = document.getElementById('template');
+      const template = templateInput ? templateInput.value : '';
+
+      const otherActivitiesInput = document.getElementById('otherActivities');
+      const otherActivities = otherActivitiesInput ? otherActivitiesInput.value : '';
+
+      vscode.postMessage({
+        command: 'sendToApi',
+        data: { ...currentData, template, otherActivities },
+      });
+    }
   }
 
   window.addEventListener('message', (event) => {
@@ -182,6 +216,7 @@
   function handleResults(data) {
     if (data.today && data.yesterday) {
       // This is history data
+      historyData = data;
       renderHistory(data);
     } else {
       // This is summary generation
@@ -225,18 +260,33 @@
     if (data.summary) {
       console.log('Summary data:', data);
 
-      summaryContent.textContent = data.summary;
+      originalSummary = data.summary;
+      // If we are already in standup mode, we should construct the standup view immediately
+      // But usually this function is called when new summary arrives.
+      // Let's defer to updateSummaryDisplay.
+
+      updateSummaryDisplay();
+
       summaryContent.classList.remove('hidden');
       sendBtn.style.display = 'inline-block';
       sendBtn.textContent = 'Save';
+      if (regenerateBtn) {
+        regenerateBtn.style.display = 'inline-block';
+      }
     } else {
       summaryContent.classList.add('hidden');
 
       if (hasCommits) {
         sendBtn.style.display = 'inline-block';
         sendBtn.textContent = 'Generate AI Summary';
+        if (regenerateBtn) {
+          regenerateBtn.style.display = 'none';
+        }
       } else {
         sendBtn.style.display = 'none';
+        if (regenerateBtn) {
+          regenerateBtn.style.display = 'none';
+        }
       }
     }
   }
@@ -294,6 +344,33 @@
     const headerObj = document.querySelector('#inputsSection h3');
     if (headerObj) {
       headerObj.textContent = `Found ${totalCommits} commits to process:`;
+    }
+  }
+
+  function updateSummaryDisplay() {
+    if (!originalSummary) {
+      return;
+    }
+
+    if (isStandupMode) {
+      const yesterdaySummary = historyData?.yesterday?.summary
+        ? historyData.yesterday.summary
+        : 'No record found.';
+
+      const todaySummary = originalSummary;
+
+      const standupText = `Q1: What DID you work yesterday?
+${yesterdaySummary}
+
+Q2: What ARE you working today?
+${todaySummary}
+
+Q3: Any BOTTLE NECK or ISSUES to complete your task?
+No`;
+
+      summaryContent.textContent = standupText;
+    } else {
+      summaryContent.textContent = originalSummary;
     }
   }
 
