@@ -430,7 +430,7 @@ input:focus,
 textarea:focus {
   outline: none;
   border-color: var(--vscode-focusBorder);
-  box-shadow: 0 0 0 2px var(--vscode-focusBorder00); /* transparent focus ring if supported */
+  box-shadow: 0 0 0 2px var(--vscode-focusBorder); /* transparent focus ring if supported */
 }
 
 /* ---------------- BUTTONS ---------------- */
