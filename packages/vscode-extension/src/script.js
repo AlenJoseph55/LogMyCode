@@ -36,7 +36,7 @@
   // Set default date to today
   dateInput.valueAsDate = new Date();
 
-  // Restore state
+  // Restore state - this is paramount so it overwrites HTML placeholders
   const oldState = vscode.getState() || {};
   if (oldState.userId) {
     userIdInput.value = oldState.userId;
@@ -44,6 +44,18 @@
   if (oldState.gitAuthor) {
     gitAuthorInput.value = oldState.gitAuthor;
   }
+
+  // Save state on input change
+  function saveState() {
+    vscode.setState({
+      ...vscode.getState(),
+      userId: userIdInput.value,
+      gitAuthor: gitAuthorInput.value,
+    });
+  }
+
+  userIdInput.addEventListener('input', saveState);
+  gitAuthorInput.addEventListener('input', saveState);
 
   if (addFolderBtn) {
     addFolderBtn.addEventListener('click', () => {
@@ -64,11 +76,19 @@
     });
   }
 
-  const initialFolders = window.initialFolders || [];
-  renderFolders(initialFolders);
-
-  // Auto-fetch history
+  // Auto-fetch history and commits on load
   setTimeout(() => {
+    fetchHistoryForCurrentDate();
+    // Also trigger commit fetching
+    generateSummary();
+  }, 500);
+
+  // Auto-fetch history when date changes
+  dateInput.addEventListener('change', () => {
+    fetchHistoryForCurrentDate();
+  });
+
+  function fetchHistoryForCurrentDate() {
     const date = dateInput.value;
     const userId = userIdInput.value;
     if (userId && date) {
@@ -78,7 +98,7 @@
       });
       showStatus('Fetching history...', 'info');
     }
-  }, 500);
+  }
 
   if (getCommitsBtn) {
     getCommitsBtn.addEventListener('click', generateSummary);
@@ -96,8 +116,6 @@
     const userId = userIdInput.value;
     const gitAuthor = gitAuthorInput.value || userId;
 
-    vscode.setState({ ...vscode.getState(), userId, gitAuthor });
-
     vscode.postMessage({
       command: 'getCommits',
       data: { date, author: gitAuthor, userId },
@@ -108,13 +126,7 @@
 
   if (refreshHistoryBtn) {
     refreshHistoryBtn.addEventListener('click', () => {
-      const date = dateInput.value;
-      const userId = userIdInput.value;
-      vscode.postMessage({
-        command: 'fetchHistory',
-        data: { date, userId },
-      });
-      showStatus('Fetching history...', 'info');
+      fetchHistoryForCurrentDate();
     });
   }
 
@@ -124,28 +136,32 @@
         const lines = summaryContent.textContent.split('\n');
         let validLines = lines;
 
-        // 1. Find Start: Look for "LogMyCode – Daily Summary"
-        const startIndex = lines.findIndex((l) => l.trim().startsWith('LogMyCode – Daily Summary'));
-        if (startIndex !== -1) {
-          validLines = lines.slice(startIndex + 1);
-        } else {
-          // Fallback: if we can't find the header, assume standard format and remove first line
-          if (validLines.length > 0) {
-            validLines = validLines.slice(1);
+        if (!isStandupMode) {
+          // 1. Find Start: Look for "LogMyCode – Daily Summary"
+          const startIndex = lines.findIndex((l) =>
+            l.trim().startsWith('LogMyCode – Daily Summary')
+          );
+          if (startIndex !== -1) {
+            validLines = lines.slice(startIndex + 1);
+          } else {
+            // Fallback: if we can't find the header, assume standard format and remove first line
+            if (validLines.length > 0) {
+              validLines = validLines.slice(1);
+            }
           }
-        }
 
-        // 2. Find End: Look for "Total commits:" from the end
-        let endIndex = -1;
-        for (let i = validLines.length - 1; i >= 0; i--) {
-          if (validLines[i].trim().startsWith('Total commits:')) {
-            endIndex = i;
-            break;
+          // 2. Find End: Look for "Total commits:" from the end
+          let endIndex = -1;
+          for (let i = validLines.length - 1; i >= 0; i--) {
+            if (validLines[i].trim().startsWith('Total commits:')) {
+              endIndex = i;
+              break;
+            }
           }
-        }
 
-        if (endIndex !== -1) {
-          validLines = validLines.slice(0, endIndex);
+          if (endIndex !== -1) {
+            validLines = validLines.slice(0, endIndex);
+          }
         }
 
         const textToCopy = validLines.join('\n').trim();
@@ -210,17 +226,38 @@
       case 'status':
         showStatus(message.text, message.type);
         break;
+      case 'setGlobalDefaultUser':
+        if (!userIdInput.value && message.user) {
+          userIdInput.value = message.user;
+          saveState();
+        }
+        if (!gitAuthorInput.value && message.user) {
+          gitAuthorInput.value = message.user;
+          saveState();
+        }
+        break;
     }
   });
 
   function handleResults(data) {
-    if (data.today && data.yesterday) {
-      // This is history data
+    if (data.today && data.yesterday && !data.repos) {
+      // This is history data from fetchHistory
       historyData = data;
       renderHistory(data);
     } else {
       // This is summary generation
       currentData = data;
+      // If the backend sent yesterday's data along with the new summary, update historyData
+      if (data.yesterday !== undefined) {
+        historyData = {
+          ...historyData,
+          yesterday: data.yesterday || { date: 'N/A', summary: null, totalCommits: 0 },
+        };
+        // Also re-render the history sidebar so it stays in sync
+        if (historyData.today) {
+          renderHistory(historyData);
+        }
+      }
       renderSummary(data);
     }
   }
@@ -268,8 +305,7 @@
       updateSummaryDisplay();
 
       summaryContent.classList.remove('hidden');
-      sendBtn.style.display = 'inline-block';
-      sendBtn.textContent = 'Save';
+      sendBtn.style.display = 'none';
       if (regenerateBtn) {
         regenerateBtn.style.display = 'inline-block';
       }

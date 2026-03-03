@@ -27,10 +27,15 @@ export class DailySummaryWebview {
 
     this._folders = this._context.globalState.get<string[]>('dailySummary.folders') || [];
 
-    // Fetch global git user and then update the view
+    // Fetch global git user - but DO NOT force an _update() as it will overwrite
+    // the frontend's vscode.getState() with raw HTML placeholders.
     this._gitService.getGlobalGitUser().then((user) => {
       this._defaultGitAuthor = user;
-      this._update();
+      // Tell the frontend about the system default if it needs it
+      this._panel.webview.postMessage({
+        command: 'setGlobalDefaultUser',
+        user: user,
+      });
     });
 
     this._update();
