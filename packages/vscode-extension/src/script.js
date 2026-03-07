@@ -36,6 +36,10 @@
   // Set default date to today
   dateInput.valueAsDate = new Date();
 
+  if (window.initialFolders) {
+    renderFolders(window.initialFolders);
+  }
+
   // Restore state - this is paramount so it overwrites HTML placeholders
   const oldState = vscode.getState() || {};
   if (oldState.userId) {
@@ -56,6 +60,19 @@
 
   userIdInput.addEventListener('input', saveState);
   gitAuthorInput.addEventListener('input', saveState);
+
+  function notifyBackendSettings() {
+    vscode.postMessage({
+      command: 'saveSettings',
+      data: {
+        userId: userIdInput.value,
+        gitAuthor: gitAuthorInput.value,
+      },
+    });
+  }
+
+  userIdInput.addEventListener('change', notifyBackendSettings);
+  gitAuthorInput.addEventListener('change', notifyBackendSettings);
 
   if (addFolderBtn) {
     addFolderBtn.addEventListener('click', () => {
@@ -79,8 +96,10 @@
   // Auto-fetch history and commits on load
   setTimeout(() => {
     fetchHistoryForCurrentDate();
-    // Also trigger commit fetching
-    generateSummary();
+    // Also trigger commit fetching if user/author is known
+    if (userIdInput.value || gitAuthorInput.value) {
+      generateSummary();
+    }
   }, 500);
 
   // Auto-fetch history when date changes
@@ -115,6 +134,11 @@
     const date = dateInput.value;
     const userId = userIdInput.value;
     const gitAuthor = gitAuthorInput.value || userId;
+
+    if (!gitAuthor) {
+      showStatus('Please provide a Git Author or User ID', 'error');
+      return;
+    }
 
     vscode.postMessage({
       command: 'getCommits',
@@ -220,22 +244,35 @@
           showStatus('Done', 'success');
         } catch (e) {
           showStatus(`Error processing results: ${e}`, 'error');
-          console.error(e);
+          vscode.postMessage({ command: 'log', text: `Error processing results: ${e}` });
         }
         break;
       case 'status':
         showStatus(message.text, message.type);
         break;
-      case 'setGlobalDefaultUser':
+      case 'setGlobalDefaultUser': {
+        let updated = false;
         if (!userIdInput.value && message.user) {
           userIdInput.value = message.user;
           saveState();
+          updated = true;
         }
         if (!gitAuthorInput.value && message.user) {
           gitAuthorInput.value = message.user;
           saveState();
+          updated = true;
+        }
+
+        if (updated) {
+          notifyBackendSettings();
+        }
+
+        // Auto-trigger if we just populated the fields and haven't fetched commits yet
+        if (updated && !currentData && (userIdInput.value || gitAuthorInput.value)) {
+          generateSummary();
         }
         break;
+      }
     }
   });
 
@@ -293,10 +330,9 @@
       }
     }
 
-    console.log('I am here');
+    vscode.postMessage({ command: 'log', text: 'I am here' });
     if (data.summary) {
-      console.log('Summary data:', data);
-
+      vscode.postMessage({ command: 'log', text: `Summary data: ${JSON.stringify(data)}` });
       originalSummary = data.summary;
       // If we are already in standup mode, we should construct the standup view immediately
       // But usually this function is called when new summary arrives.
