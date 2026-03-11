@@ -26,7 +26,7 @@
       "properties": {
         "logmycode.apiUrl": {
           "type": "string",
-          "default": "https://api.logmycode.alenjoseph.dev/api",
+          "default": "logmycode-production.up.railway.app/api",
           "description": "Base URL for the LogMyCode API"
         }
       }
