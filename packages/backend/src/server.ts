@@ -79,11 +79,23 @@ app.post('/api/commits', async (req, res) => {
       });
     }
 
+    // Fetch yesterday's summary relative to the new date
+    const lastSummary = await getLatestSummaryBeforeDate(payload.userId, payload.date);
+    let yesterday = null;
+    if (lastSummary) {
+      yesterday = {
+        date: lastSummary.date,
+        summary: lastSummary.summary,
+        totalCommits: lastSummary.totalCommits,
+      };
+    }
+
     return res.json({
       userId: payload.userId,
       date: payload.date,
       summary: summaryText,
       repos,
+      yesterday, // <-- New addition
     });
   } catch (error) {
     console.error('Error processing commits:', error);

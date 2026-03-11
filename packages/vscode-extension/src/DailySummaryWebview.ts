@@ -8,9 +8,11 @@ export class DailySummaryWebview {
   private _disposables: vscode.Disposable[] = [];
   private _gitService: GitService;
   private _context: vscode.ExtensionContext;
+  private _logger: vscode.OutputChannel;
 
   private _folders: string[] = [];
-  private _defaultGitAuthor: string = '';
+  private _savedUserId: string = '';
+  private _savedGitAuthor: string = '';
   private readonly _summaryTemplate = `    
 • [Repo Name]
   - [Summary point 1]
@@ -23,15 +25,23 @@ export class DailySummaryWebview {
     this._panel = panel;
     this._extensionUri = context.extensionUri;
     this._context = context;
+    this._logger = vscode.window.createOutputChannel('LogMyCode');
     this._gitService = new GitService();
 
     this._folders = this._context.globalState.get<string[]>('dailySummary.folders') || [];
+    this._savedUserId = this._context.globalState.get<string>('dailySummary.userId') || '';
+    this._savedGitAuthor = this._context.globalState.get<string>('dailySummary.gitAuthor') || '';
 
-    // Fetch global git user and then update the view
-    this._gitService.getGlobalGitUser().then((user) => {
-      this._defaultGitAuthor = user;
-      this._update();
-    });
+    // Fetch global git user only if not saved
+    if (!this._savedUserId || !this._savedGitAuthor) {
+      this._gitService.getGlobalGitUser().then((user) => {
+        // Tell the frontend about the system default if it needs it
+        this._panel.webview.postMessage({
+          command: 'setGlobalDefaultUser',
+          user: user,
+        });
+      });
+    }
 
     this._update();
 
@@ -49,6 +59,12 @@ export class DailySummaryWebview {
             return;
           case 'getCommits':
             this._getCommits(message.data);
+            return;
+          case 'saveSettings':
+            this._savedUserId = message.data.userId;
+            this._savedGitAuthor = message.data.gitAuthor;
+            this._context.globalState.update('dailySummary.userId', this._savedUserId);
+            this._context.globalState.update('dailySummary.gitAuthor', this._savedGitAuthor);
             return;
           case 'sendToApi':
             this._sendToApi(message.data);
@@ -70,6 +86,9 @@ export class DailySummaryWebview {
             vscode.window.showInformationMessage('Copied to clipboard!');
             return;
           }
+          case 'log':
+            this._logger.appendLine(`[Webview] ${message.text}`);
+            return;
         }
       },
       null,
@@ -182,7 +201,7 @@ export class DailySummaryWebview {
                 results.push(result);
               }
             } catch (err) {
-              console.error(`Failed to scan ${folder}:`, err);
+              this._logger.appendLine(`Failed to scan ${folder}: ${err}`);
               // Continue scanning other folders
             }
           }
@@ -205,7 +224,7 @@ export class DailySummaryWebview {
         });
       }
     } catch (error) {
-      console.error('Error in _getCommits:', error);
+      this._logger.appendLine(`Error in _getCommits: ${error}`);
       vscode.window.showErrorMessage(`Error fetching commits: ${error}`);
       this._panel.webview.postMessage({
         command: 'status',
@@ -223,7 +242,7 @@ export class DailySummaryWebview {
     template?: string;
     otherActivities?: string;
   }) {
-    console.log('template', data.template);
+    this._logger.appendLine(`template: ${data.template}`);
     const config = vscode.workspace.getConfiguration('logmycode');
     const apiUrl = config.get<string>('apiUrl');
 
@@ -656,11 +675,11 @@ button.icon-btn:hover {
         </div>
         <div class="form-group">
           <label>User ID</label>
-          <input type="text" id="userId" value="${this._defaultGitAuthor}" placeholder="e.g. johndoe" />
+          <input type="text" id="userId" value="${this._savedUserId}" placeholder="e.g. johndoe" />
         </div>
         <div class="form-group">
           <label>Git Author</label>
-          <input type="text" id="gitAuthor" value="${this._defaultGitAuthor}" placeholder="e.g. John Doe" />
+          <input type="text" id="gitAuthor" value="${this._savedGitAuthor}" placeholder="e.g. John Doe" />
         </div>
       </div>
     </div>

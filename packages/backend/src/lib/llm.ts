@@ -33,6 +33,16 @@ export async function generateDailySummary(
     })
     .join('\n\n');
 
+  const placeholders = ['none', 'no manual work log entries to report', ''];
+  const isManualEmpty =
+    !otherActivities || placeholders.includes(otherActivities.toLowerCase().trim());
+
+  if (commits.length === 0 && isManualEmpty) {
+    return '';
+  }
+
+  const sanitizedActivities = isManualEmpty ? 'None' : otherActivities;
+
   const preamble = `
 You are an AI assistant for a developer tool called "LogMyCode".
 Your task is to generate a daily work summary based on the following git commits for User "${userId}" on Date "${date}".
@@ -41,7 +51,7 @@ Input Commits:
 ${commitsText}
 
 Manual Work Log:
-${otherActivities || 'None'}
+${sanitizedActivities}
 `;
 
   const defaultFormat = `
@@ -64,16 +74,19 @@ Instructions:
    - Do NOT explain the outcome or benefit (e.g., "to improve performance"). Just state what was done (e.g., "Optimized database queries").
 4. Combine related commits where appropriate but keep points purely action-oriented.
 5. PROCESS MANUAL WORK LOG:
-   - "Manual Work Log" entries may be informal or emotional (e.g., "Argued with testing team").
-   - You MUST rewrite them into concise, professional updates (e.g., "Discussed ticket requirements with QA").
+   - "Manual Work Log" entries may be informal, emotional, or placeholders (e.g., "None", "No manual work log entries to report", "Argued with testing team").
+   - IF the log only contains placeholders like "None" or "No manual work log entries to report", IGNORE IT ENTIRELY.
+   - Otherwise, you MUST rewrite them into concise, professional updates (e.g., "Discussed ticket requirements with QA").
    - IF a manual entry refers to a specific repository or task context present in the commits, MERGE it as a bullet point under that repository.
-   - IF it is a general activity (e.g., "Client meeting"), add it to a "General / Other" section or a relevant repository if one exists for it.
-6. Calculate the total number of commits.
-7. Format the output EXACTLY as follows:
+   - IF it is a general activity (e.g., "Client meeting"), add it to a "General / Other" section ONLY if it's a real activity.
+6. NO PLACEHOLDERS: Do NOT include sections or bullet points like "No general activities", "No commits", "None", or "No work found". If a section has no content, OMIT it.
+7. EMPTY STATE HANDLING:
+   - IF there are NO commits AND the Manual Work Log is "None" or empty/placeholder, you MUST return absolutely NOTHING. No text, no headings, no spaces. Your output length should be 0.
+8. Format the output EXACTLY as follows:
 
 ${userFormat}
 
-Do not add any other text before or after this format.
+Do not add any other text before or after this format. If the result is empty based on rule 7, ignore this format and return an empty string "".
 `;
 
   // prompt = preamble + instructions
@@ -85,15 +98,38 @@ Do not add any other text before or after this format.
         {
           role: 'system',
           content:
-            'You are a strict reporting bot. You generate daily work summaries. You MUST ONLY output the summary in the requested format. Do NOT add greetings, introductions, or closing remarks. Do NOT say "Here is a daily work summary" or "Let me know if you need any further assistance or details!".',
+            'You are a strict reporting bot. You generate daily work summaries. You MUST ONLY output the summary in the requested format. If there is no work to report and no commits, you MUST return an empty string. Do NOT add greetings, introductions, or closing remarks. Do NOT say "Here is a daily work summary" or "Let me know if you need any further assistance or details!".',
         },
         { role: 'user', content: prompt },
       ],
       model: 'llama-3.3-70b-versatile',
       temperature: 0.5,
     });
-    console.log(response.choices[0]?.message?.content);
-    return response.choices[0]?.message?.content || 'Failed to generate summary.';
+    let content = response.choices[0]?.message?.content?.trim();
+
+    // Final fallback if LLM still returned placeholder-like text
+    if (
+      content &&
+      (content.toLowerCase().includes('no commits') ||
+        content.toLowerCase().includes('no work found') ||
+        content.toLowerCase() === 'none')
+    ) {
+      if (commits.length === 0 && isManualEmpty) {
+        return '';
+      }
+    }
+
+    // Aggressively strip trailing placeholder sections if they slip through
+    if (content && isManualEmpty) {
+      const gO = '• General / Other';
+      const pText = '- No manual work log entries to report';
+      if (content.includes(gO) && content.includes(pText)) {
+        content = content.replace(new RegExp(`${gO}\\s*${pText}`, 'g'), '').trim();
+      }
+    }
+
+    console.log(content);
+    return content || 'Failed to generate summary.';
   } catch (error) {
     console.error('Error calling Groq:', error);
     return 'Error generating summary via AI.';
