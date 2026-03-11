@@ -4,10 +4,12 @@ All notable changes to the "logmycode" extension will be documented in this file
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
-## [2.2.0] - 2026-02-18
+## [2.3.0] - 2026-03-11
 
 ### Added
 
+- **Persistent Settings**: User ID and Git Author inputs are now stashed in global storage, ensuring they persist between sessions.
+- **Enhanced Logging**: Integrated VS Code `OutputChannel` ("LogMyCode") for better debugging and error tracking.
 - **Standup Mode**: Toggle between standard summary and a Q1/Q2/Q3 standup format (Yesterday/Today/Blockers).
 - **Manual Work Log**: New field to input non-commit activities, which are professionally rewritten by AI.
 - **Regenerate Summary**: Button to re-run AI generation with updated inputs.
@@ -16,9 +18,14 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 ### Changed
 
 - **UI Overhaul**: Complete visual redesign with a modern, card-based layout and improved styling.
-- **Smart History**: specific "Yesterday" logic replaced with fetching the _latest_ available previous summary for better context.
+- **Smart History**: Specific "Yesterday" logic replaced with fetching the _latest_ available previous summary for better context.
 - **Data Storage**: Summaries are now stored cleanly without headers/footers, allowing for dynamic formatting.
 - **Sidebar**: Improved organization for Source Folders and History.
+- **API URL**: Set default API URL to the production endpoint.
+
+## [2.2.0] - 2026-02-18
+
+- **Fix**: Update textarea focus box-shadow variable in daily summary webview.
 
 ## [2.1.0] - 2026-02-17
 
