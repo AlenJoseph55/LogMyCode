@@ -8,6 +8,10 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
+// Make the LLM model configurable via environment variable.
+// Default fallback model: 'qwen-3.6-27b' (Qwen 3.6 27B)
+const LLM_MODEL = process.env.LLM_MODEL || 'qwen-3.6-27b';
+
 export async function generateDailySummary(
   userId: string,
   date: string,
@@ -98,11 +102,11 @@ Do not add any other text before or after this format. If the result is empty ba
         {
           role: 'system',
           content:
-            'You are a strict reporting bot. You generate daily work summaries. You MUST ONLY output the summary in the requested format. If there is no work to report and no commits, you MUST return an empty string. Do NOT add greetings, introductions, or closing remarks. Do NOT say "Here is a daily work summary" or "Let me know if you need any further assistance or details!".',
+            'You are a strict reporting bot. You generate daily work summaries. You MUST ONLY output the summary in the requested format. If there is no work to report and no commits, you MUST return an empty string.',
         },
         { role: 'user', content: prompt },
       ],
-      model: 'llama-3.3-70b-versatile',
+      model: LLM_MODEL,
       temperature: 0.5,
     });
     let content = response.choices[0]?.message?.content?.trim();
