@@ -10,7 +10,7 @@ const groq = new Groq({
 
 // Make the LLM model configurable via environment variable.
 // Default fallback model: 'qwen-3.6-27b' (Qwen 3.6 27B)
-const LLM_MODEL = process.env.LLM_MODEL || 'qwen-3.6-27b';
+const LLM_MODEL = process.env.LLM_MODEL || 'openai/gpt-oss-20b';
 
 export async function generateDailySummary(
   userId: string,
