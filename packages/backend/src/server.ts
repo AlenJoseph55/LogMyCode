@@ -1,4 +1,6 @@
 import express from 'express';
+import swaggerUi from 'swagger-ui-express';
+import { swaggerSpec } from './swagger';
 import {
   initDb,
   saveCommits,
@@ -11,10 +13,37 @@ import {
 } from './lib/db';
 import { generateDailySummary } from './lib/llm';
 
+import rateLimit from 'express-rate-limit';
+
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 4001;
 
+// Trust reverse proxy (Railway, Render, Nginx) for accurate IP resolution
+app.set('trust proxy', 1);
+
 app.use(express.json());
+
+// Rate Limiter: 10 requests per hour per IP (temporary measure to prevent spam)
+const apiLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  limit: 10, // Limit each IP to 10 requests per windowMs
+  standardHeaders: 'draft-7', // Return standard RateLimit headers
+  legacyHeaders: false,
+  message: {
+    error: 'Too Many Requests',
+    message: 'Rate limit exceeded: Maximum 10 requests per hour. Please try again later.',
+  },
+});
+
+// Apply rate limiter to API routes
+app.use('/api', apiLimiter);
+
+// Swagger UI & JSON Spec (exempt from rate limit)
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.get('/api-docs.json', (_req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
 
 initDb();
 
@@ -205,4 +234,5 @@ app.get('/health', (_req, res) => {
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`LogMyCode backend listening on port ${PORT}`);
+  console.log(`Swagger documentation available at http://localhost:${PORT}/api-docs`);
 });
