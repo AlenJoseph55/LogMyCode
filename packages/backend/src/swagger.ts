@@ -1,0 +1,778 @@
+export const swaggerSpec = {
+  openapi: '3.0.3',
+  info: {
+    title: 'LogMyCode Backend API',
+    version: '2.1.0',
+    description:
+      'API documentation for **LogMyCode**, an AI-powered developer standup & work log automation system. Aggregates multi-repo Git commits, normalizes manual work logs, and generates concise action-oriented summaries using Groq LLM (Llama-3.3-70B).',
+    contact: {
+      name: 'LogMyCode Team',
+    },
+    license: {
+      name: 'ISC',
+    },
+  },
+  servers: [
+    {
+      url: 'https://logmycode-production.up.railway.app',
+      description: 'Production server (Railway)',
+    },
+    {
+      url: 'http://localhost:4001',
+      description: 'Local development server',
+    },
+  ],
+  tags: [
+    {
+      name: 'Commits & Summaries',
+      description:
+        'Endpoints for ingesting commits, triggering AI generation, and querying work logs.',
+    },
+    {
+      name: 'System',
+      description: 'Healthcheck and diagnostic endpoints.',
+    },
+  ],
+  paths: {
+    '/api/commits': {
+      post: {
+        tags: ['Commits & Summaries'],
+        summary: 'Ingest commits and generate daily summary',
+        description:
+          'Receives aggregated Git commits and optional manual activity notes for a user and date. Stores commits in PostgreSQL, invokes Groq LLM to synthesize an action-oriented summary, persists the summary, and returns today\'s summary along with the most recent prior summary ("smart yesterday").',
+        requestBody: {
+          required: true,
+          description:
+            'Payload containing user ID, target date, repository commits, and optional context.',
+          content: {
+            'application/json': {
+              schema: {
+                $ref: '#/components/schemas/BulkCommitPayload',
+              },
+              examples: {
+                standardMultiRepo: {
+                  summary: 'Multi-repository commit submission with manual activity',
+                  value: {
+                    userId: 'alen_joseph',
+                    date: '2026-10-07',
+                    template: 'standup',
+                    otherActivities:
+                      'Conducted sprint backlog refinement; assisted DevOps team in resolving staging deployment pipeline.',
+                    repos: [
+                      {
+                        name: 'LogMyCode-backend',
+                        commits: [
+                          {
+                            hash: 'a1b2c3d4e5f678901234567890abcdef12345678',
+                            message: 'feat: add Swagger UI and OpenAPI documentation endpoints',
+                            timestamp: '2026-10-07T14:32:00Z',
+                          },
+                          {
+                            hash: 'b2c3d4e5f678901234567890abcdef12345678a1',
+                            message: 'fix: handle weekend gaps in latest summary lookback query',
+                            timestamp: '2026-10-07T16:15:22Z',
+                          },
+                        ],
+                      },
+                      {
+                        name: 'LogMyCode-vscode-extension',
+                        commits: [
+                          {
+                            hash: 'c3d4e5f678901234567890abcdef12345678a1b2',
+                            message: 'style: align webview colors with active VS Code theme tokens',
+                            timestamp: '2026-10-07T11:05:40Z',
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                },
+                manualOnly: {
+                  summary: 'Non-code work only (no commits)',
+                  value: {
+                    userId: 'alen_joseph',
+                    date: '2026-10-07',
+                    template: 'bullet',
+                    otherActivities:
+                      'Attended client architecture review meeting and finished quarterly compliance training.',
+                    repos: [],
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Summary successfully generated and persisted.',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/CommitIngestResponse',
+                },
+                examples: {
+                  successResponse: {
+                    summary: 'Generated summary with grouped repos and yesterday context',
+                    value: {
+                      userId: 'alen_joseph',
+                      date: '2026-10-07',
+                      summary:
+                        '- Added Swagger UI and OpenAPI documentation endpoints to backend service\n- Fixed weekend date gap resolution in smart yesterday summary lookback\n- Synchronized VS Code webview theme tokens with active IDE palette\n- Conducted sprint backlog refinement with product team\n- Assisted DevOps with staging deployment pipeline stabilization',
+                      repos: [
+                        {
+                          name: 'LogMyCode-backend',
+                          commits: [
+                            {
+                              hash: 'a1b2c3d4e5f678901234567890abcdef12345678',
+                              message: 'feat: add Swagger UI and OpenAPI documentation endpoints',
+                            },
+                            {
+                              hash: 'b2c3d4e5f678901234567890abcdef12345678a1',
+                              message: 'fix: handle weekend gaps in latest summary lookback query',
+                            },
+                          ],
+                        },
+                        {
+                          name: 'LogMyCode-vscode-extension',
+                          commits: [
+                            {
+                              hash: 'c3d4e5f678901234567890abcdef12345678a1b2',
+                              message:
+                                'style: align webview colors with active VS Code theme tokens',
+                            },
+                          ],
+                        },
+                      ],
+                      yesterday: {
+                        date: '2026-10-06',
+                        summary:
+                          '- Refactored database connection pooling for Neon serverless\n- Implemented commit deduplication filter in VS Code GitService',
+                        totalCommits: 4,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Invalid request payload (failed Zod validation).',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ValidationErrorResponse',
+                },
+                examples: {
+                  missingRequiredFields: {
+                    summary: 'Validation error when date or repos are missing',
+                    value: {
+                      error: 'Invalid payload',
+                      details: {
+                        _errors: [],
+                        date: {
+                          _errors: ['Expected string, received undefined'],
+                        },
+                        repos: {
+                          _errors: ['Expected array, received undefined'],
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '429': {
+            description: 'Too Many Requests - Rate limit exceeded (10 requests per hour).',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/RateLimitErrorResponse',
+                },
+                examples: {
+                  rateLimited: {
+                    value: {
+                      error: 'Too Many Requests',
+                      message:
+                        'Rate limit exceeded: Maximum 10 requests per hour. Please try again later.',
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '500': {
+            description: 'Internal server error while processing commits or generating summary.',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse',
+                },
+                examples: {
+                  serverError: {
+                    value: {
+                      error: 'Internal Server Error',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/daily-summary': {
+      get: {
+        tags: ['Commits & Summaries'],
+        summary: 'Get stored daily summary for a date',
+        description:
+          'Retrieves an existing daily summary and unique repository commits from PostgreSQL for a specific user and date. Does not trigger new LLM generation.',
+        parameters: [
+          {
+            name: 'userId',
+            in: 'query',
+            required: true,
+            description: 'Unique identifier or username for the developer.',
+            schema: {
+              type: 'string',
+            },
+            example: 'alen_joseph',
+          },
+          {
+            name: 'date',
+            in: 'query',
+            required: true,
+            description: 'Target date in YYYY-MM-DD format.',
+            schema: {
+              type: 'string',
+              format: 'date',
+            },
+            example: '2026-10-07',
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Stored summary and repository commit records.',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/DailySummaryResponse',
+                },
+                examples: {
+                  foundSummary: {
+                    summary: 'Existing daily summary found',
+                    value: {
+                      userId: 'alen_joseph',
+                      date: '2026-10-07',
+                      summary:
+                        '- Added Swagger UI and OpenAPI documentation endpoints to backend service\n- Fixed weekend date gap resolution in smart yesterday summary lookback',
+                      repos: [
+                        {
+                          name: 'LogMyCode-backend',
+                          commits: [
+                            {
+                              hash: 'a1b2c3d4e5f678901234567890abcdef12345678',
+                              message: 'feat: add Swagger UI and OpenAPI documentation endpoints',
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                  },
+                  noSummaryYet: {
+                    summary: 'No summary generated yet for this date',
+                    value: {
+                      userId: 'alen_joseph',
+                      date: '2026-10-07',
+                      summary: 'No summary generated yet.',
+                      repos: [],
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Missing required query parameters (userId or date).',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse',
+                },
+                examples: {
+                  missingParams: {
+                    value: {
+                      error: 'Missing userId or date',
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '429': {
+            description: 'Too Many Requests - Rate limit exceeded (10 requests per hour).',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/RateLimitErrorResponse',
+                },
+                examples: {
+                  rateLimited: {
+                    value: {
+                      error: 'Too Many Requests',
+                      message:
+                        'Rate limit exceeded: Maximum 10 requests per hour. Please try again later.',
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '500': {
+            description: 'Internal server error while retrieving data from database.',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse',
+                },
+                examples: {
+                  serverError: {
+                    value: {
+                      error: 'Internal Server Error',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/recent-summaries': {
+      get: {
+        tags: ['Commits & Summaries'],
+        summary: 'Get today and previous workday summaries',
+        description:
+          'Retrieves summary metadata for today alongside the most recent prior summary ("smart yesterday") for standup comparison. Intelligently skips weekend and holiday inactivity.',
+        parameters: [
+          {
+            name: 'userId',
+            in: 'query',
+            required: true,
+            description: 'Unique identifier or username for the developer.',
+            schema: {
+              type: 'string',
+            },
+            example: 'alen_joseph',
+          },
+          {
+            name: 'date',
+            in: 'query',
+            required: false,
+            description:
+              'Reference date in YYYY-MM-DD format (defaults to the provided date context).',
+            schema: {
+              type: 'string',
+              format: 'date',
+            },
+            example: '2026-10-07',
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Recent summaries pair for current date and prior workday.',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/RecentSummariesResponse',
+                },
+                examples: {
+                  standardRecent: {
+                    value: {
+                      userId: 'alen_joseph',
+                      today: {
+                        date: '2026-10-07',
+                        summary:
+                          '- Added Swagger UI and OpenAPI documentation endpoints to backend service\n- Conducted sprint backlog refinement with product team',
+                        totalCommits: 3,
+                      },
+                      yesterday: {
+                        date: '2026-10-06',
+                        summary:
+                          '- Refactored database connection pooling for Neon serverless\n- Implemented commit deduplication filter in VS Code GitService',
+                        totalCommits: 4,
+                      },
+                    },
+                  },
+                  firstTimeUser: {
+                    summary: 'User with no previous days recorded',
+                    value: {
+                      userId: 'new_developer',
+                      today: {
+                        date: '2026-10-07',
+                        summary: null,
+                        totalCommits: 0,
+                      },
+                      yesterday: {
+                        date: 'N/A',
+                        summary: null,
+                        totalCommits: 0,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Missing required userId parameter.',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse',
+                },
+                examples: {
+                  missingUser: {
+                    value: {
+                      error: 'Missing userId',
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '429': {
+            description: 'Too Many Requests - Rate limit exceeded (10 requests per hour).',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/RateLimitErrorResponse',
+                },
+                examples: {
+                  rateLimited: {
+                    value: {
+                      error: 'Too Many Requests',
+                      message:
+                        'Rate limit exceeded: Maximum 10 requests per hour. Please try again later.',
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '500': {
+            description: 'Internal server error.',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/ErrorResponse',
+                },
+                examples: {
+                  serverError: {
+                    value: {
+                      error: 'Internal Server Error',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/health': {
+      get: {
+        tags: ['System'],
+        summary: 'Service health check',
+        description: 'Returns status ok if the backend Express server is responsive.',
+        responses: {
+          '200': {
+            description: 'Service is healthy.',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    status: {
+                      type: 'string',
+                      example: 'ok',
+                    },
+                  },
+                  required: ['status'],
+                },
+                examples: {
+                  ok: {
+                    value: {
+                      status: 'ok',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  components: {
+    schemas: {
+      Commit: {
+        type: 'object',
+        required: ['hash', 'message'],
+        properties: {
+          hash: {
+            type: 'string',
+            description: 'Git commit hash (short or full SHA-1).',
+            example: 'a1b2c3d4e5f678901234567890abcdef12345678',
+          },
+          message: {
+            type: 'string',
+            description: 'Commit message string.',
+            example: 'feat: add Swagger UI and OpenAPI documentation endpoints',
+          },
+          timestamp: {
+            type: 'string',
+            format: 'date-time',
+            description: 'ISO-8601 commit timestamp (optional).',
+            example: '2026-10-07T14:32:00Z',
+          },
+        },
+      },
+      RepoCommits: {
+        type: 'object',
+        required: ['name', 'commits'],
+        properties: {
+          name: {
+            type: 'string',
+            description: 'Name or folder identifier of the repository.',
+            example: 'LogMyCode-backend',
+          },
+          commits: {
+            type: 'array',
+            description: 'List of commits made in this repository on the target date.',
+            items: {
+              $ref: '#/components/schemas/Commit',
+            },
+          },
+        },
+      },
+      BulkCommitPayload: {
+        type: 'object',
+        required: ['userId', 'date', 'repos'],
+        properties: {
+          userId: {
+            type: 'string',
+            description:
+              'Unique developer ID / username (e.g., local OS username or custom handle).',
+            example: 'alen_joseph',
+          },
+          date: {
+            type: 'string',
+            format: 'date',
+            description: 'Work date in YYYY-MM-DD format.',
+            example: '2026-10-07',
+          },
+          repos: {
+            type: 'array',
+            description: 'Repositories scanned and their associated commits for the date.',
+            items: {
+              $ref: '#/components/schemas/RepoCommits',
+            },
+          },
+          template: {
+            type: 'string',
+            description: 'Prompt format instruction (e.g. "standup", "bullet", "jira").',
+            example: 'standup',
+          },
+          otherActivities: {
+            type: 'string',
+            description:
+              'Unrecorded non-code work notes, meetings, PR reviews, discussions, or administrative work.',
+            example: 'Sprint retrospective; reviewed security audit findings with lead architect.',
+          },
+        },
+      },
+      GroupedRepoCommits: {
+        type: 'object',
+        required: ['name', 'commits'],
+        properties: {
+          name: {
+            type: 'string',
+            description: 'Repository name.',
+            example: 'LogMyCode-backend',
+          },
+          commits: {
+            type: 'array',
+            items: {
+              type: 'object',
+              required: ['hash', 'message'],
+              properties: {
+                hash: {
+                  type: 'string',
+                  example: 'a1b2c3d4e5f678901234567890abcdef12345678',
+                },
+                message: {
+                  type: 'string',
+                  example: 'feat: add Swagger UI and OpenAPI documentation endpoints',
+                },
+              },
+            },
+          },
+        },
+      },
+      PriorSummaryContext: {
+        type: 'object',
+        nullable: true,
+        properties: {
+          date: {
+            type: 'string',
+            format: 'date',
+            description: 'Date of the previous recorded work session.',
+            example: '2026-10-06',
+          },
+          summary: {
+            type: 'string',
+            description: 'AI-generated summary of the previous work session.',
+            example:
+              '- Refactored database connection pooling for Neon serverless\n- Implemented commit deduplication filter in VS Code GitService',
+          },
+          totalCommits: {
+            type: 'integer',
+            description: 'Total number of commits recorded on that previous date.',
+            example: 4,
+          },
+        },
+      },
+      CommitIngestResponse: {
+        type: 'object',
+        required: ['userId', 'date', 'summary', 'repos', 'yesterday'],
+        properties: {
+          userId: {
+            type: 'string',
+            example: 'alen_joseph',
+          },
+          date: {
+            type: 'string',
+            format: 'date',
+            example: '2026-10-07',
+          },
+          summary: {
+            type: 'string',
+            description: "AI-generated synthesis of today's commits and manual activities.",
+            example:
+              '- Added Swagger UI and OpenAPI documentation endpoints\n- Resolved staging pipeline deployment issues',
+          },
+          repos: {
+            type: 'array',
+            description: 'Deduplicated unique commits grouped by repository.',
+            items: {
+              $ref: '#/components/schemas/GroupedRepoCommits',
+            },
+          },
+          yesterday: {
+            $ref: '#/components/schemas/PriorSummaryContext',
+          },
+        },
+      },
+      DailySummaryResponse: {
+        type: 'object',
+        required: ['userId', 'date', 'summary', 'repos'],
+        properties: {
+          userId: {
+            type: 'string',
+            example: 'alen_joseph',
+          },
+          date: {
+            type: 'string',
+            format: 'date',
+            example: '2026-10-07',
+          },
+          summary: {
+            type: 'string',
+            example: '- Added Swagger UI and OpenAPI documentation endpoints',
+          },
+          repos: {
+            type: 'array',
+            items: {
+              $ref: '#/components/schemas/GroupedRepoCommits',
+            },
+          },
+        },
+      },
+      RecentSummaryItem: {
+        type: 'object',
+        required: ['date', 'summary', 'totalCommits'],
+        properties: {
+          date: {
+            type: 'string',
+            example: '2026-10-07',
+          },
+          summary: {
+            type: 'string',
+            nullable: true,
+            example: '- Added Swagger UI and OpenAPI documentation endpoints',
+          },
+          totalCommits: {
+            type: 'integer',
+            example: 3,
+          },
+        },
+      },
+      RecentSummariesResponse: {
+        type: 'object',
+        required: ['userId', 'today', 'yesterday'],
+        properties: {
+          userId: {
+            type: 'string',
+            example: 'alen_joseph',
+          },
+          today: {
+            $ref: '#/components/schemas/RecentSummaryItem',
+          },
+          yesterday: {
+            $ref: '#/components/schemas/RecentSummaryItem',
+          },
+        },
+      },
+      RateLimitErrorResponse: {
+        type: 'object',
+        required: ['error', 'message'],
+        properties: {
+          error: {
+            type: 'string',
+            example: 'Too Many Requests',
+          },
+          message: {
+            type: 'string',
+            example: 'Rate limit exceeded: Maximum 10 requests per hour. Please try again later.',
+          },
+        },
+      },
+      ErrorResponse: {
+        type: 'object',
+        required: ['error'],
+        properties: {
+          error: {
+            type: 'string',
+            example: 'Internal Server Error',
+          },
+        },
+      },
+      ValidationErrorResponse: {
+        type: 'object',
+        required: ['error', 'details'],
+        properties: {
+          error: {
+            type: 'string',
+            example: 'Invalid payload',
+          },
+          details: {
+            type: 'object',
+            description: 'Formatted Zod validation errors breaking down invalid fields.',
+            additionalProperties: true,
+          },
+        },
+      },
+    },
+  },
+};

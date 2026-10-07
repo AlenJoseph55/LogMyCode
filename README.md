@@ -3,6 +3,7 @@
 **LogMyCode** is a developer productivity tool that automatically captures your daily git commits and uses AI to generate concise, readable work summaries for standups, work logs, or Jira updates.
 
 The project is a monorepo containing:
+
 - **VS Code Extension** (`packages/vscode-extension`): The client-side tool to scan repos and display summaries.
 - **Backend API** (`packages/backend`): The server that handles data persistence and AI summarization.
 
@@ -17,6 +18,7 @@ The project is a monorepo containing:
 ## Getting Started
 
 ### Prerequisites
+
 - Node.js (v18+)
 - pnpm
 - PostgreSQL (or NeonDB) account
@@ -43,6 +45,9 @@ The project is a monorepo containing:
    pnpm run dev
    ```
    The server will run on `http://localhost:4001`.
+   - **Swagger UI (Production)**: [`https://logmycode-production.up.railway.app/api-docs`](https://logmycode-production.up.railway.app/api-docs)
+   - **Swagger UI (Local)**: [`http://localhost:4001/api-docs`](http://localhost:4001/api-docs)
+   - **API Markdown Reference**: [`packages/backend/API.md`](packages/backend/API.md)
 
 ### 2. Run VS Code Extension
 
